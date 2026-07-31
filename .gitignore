@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+.env.local
+.env*.local
+*.log
+
+# 历史遗留物：手动解压的 next 包与 tarball，不该进仓库
+package/
+next.tgz
+
+# 构建产物与本地缓存
+# next-on-pages 的构建产物
+.vercel/
+*.tsbuildinfo
