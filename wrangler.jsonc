@@ -3,7 +3,7 @@
   //
   // 为什么不用官方 Next 适配器：@opennextjs/cloudflare 要 Next ≥15.5（本项目 14.2），
   // @cloudflare/next-on-pages 依赖 Vercel CLI 在 Windows 上跑不起来、没法本地验证。
-  // 这条路每一步都能本地跑通再推（next build → wrangler dev → wrangler deploy）。
+  // 这条路每一步都能本地跑通再推。
   "name": "zju-ecaiclub",
   "main": "worker.ts",
   "compatibility_date": "2026-07-31",
@@ -16,6 +16,13 @@
     // 静态导出出来的是 xxx.html，访问 /about 要能命中 about.html
     "html_handling": "auto-trailing-slash",
     // 找不到的路径回落到 404.html，而不是 Worker 报错
-    "not_found_handling": "404-page"
+    "not_found_handling": "404-page",
+    // ⚠️ 这一条不能少。
+    //
+    // 静态资源处理器默认**排在 Worker 前面**：匹配不到的路径直接吐 404 页，
+    // 根本不会回落给 Worker。加上 not_found_handling 之后更是如此。
+    // 结果就是 /api/ai-config 返回 Next 的 404 页面 —— Worker 明明写了这条路由，
+    // 却永远跑不到。这里显式声明这些路径要**先走 Worker**。
+    "run_worker_first": ["/api/*"]
   }
 }
