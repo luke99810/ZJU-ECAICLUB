@@ -23,6 +23,8 @@ const DEFAULT_MODEL = 'Qwen/Qwen2.5-7B-Instruct';
 /** 单次输入上限，防止有人把整本书粘进来把免费额度烧光。 */
 const MAX_INPUT = 6000;
 
+const mask = (k: string) => (k.length <= 8 ? '****' : `${k.slice(0, 4)}…${k.slice(-4)}`);
+
 const json = (body: unknown, status: number, extra?: Record<string, string>) =>
   new Response(JSON.stringify(body), {
     status,
@@ -78,9 +80,18 @@ export default async function handler(req: Request): Promise<Response> {
 
     if (!upstream.ok) {
       const detail = await upstream.text();
-      // 把上游状态码原样透出来：401 是 key 不对，429 是额度用光，一眼能分清。
+      // 401 时光说「key 无效」不够 —— 常见原因有两个，处理方式完全不同：
+      //   a) key 抄错 / 带了空格
+      //   b) AI_API_BASE 没配，key 被发去了默认上游（硅基流动），当然认不出
+      // 所以把**用的哪个上游**和 key 的头尾一并带出来（中间打码），
+      // 看一眼报错就能分辨，不用来回试。
+      const diag =
+        upstream.status === 401
+          ? `　[诊断] 请求的上游是 ${base}，用的 key 是 ${mask(apiKey)}。` +
+            `若上游不是你申请 key 的那一家，说明 AI_API_BASE 没配对。`
+          : '';
       return json(
-        { error: `上游返回 ${upstream.status}：${detail.slice(0, 300)}` },
+        { error: `上游返回 ${upstream.status}：${detail.slice(0, 300)}${diag}` },
         upstream.status
       );
     }
