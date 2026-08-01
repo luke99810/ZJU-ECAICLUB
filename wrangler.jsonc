@@ -1,12 +1,21 @@
 {
-  // Cloudflare 的 Workers Builds 用 wrangler 部署，它会自己探测 Next.js 项目。
-  // 这个文件把探测结果固定下来，免得以后 wrangler 换了默认值又出意外。
+  // 站点结构：整站静态导出（out/）+ 一个处理 /api/* 的 Worker。
   //
-  // 注意：项目建的是 **Worker**（新流程），不是经典 Pages。
-  // 所以构建命令走 `npm run build`（普通 next build），由 wrangler 负责适配，
-  // 不需要 @cloudflare/next-on-pages —— 那个是经典 Pages 流程的产物。
+  // 为什么不用官方 Next 适配器：@opennextjs/cloudflare 要 Next ≥15.5（本项目 14.2），
+  // @cloudflare/next-on-pages 依赖 Vercel CLI 在 Windows 上跑不起来、没法本地验证。
+  // 这条路每一步都能本地跑通再推（next build → wrangler dev → wrangler deploy）。
   "name": "zju-ecaiclub",
+  "main": "worker.ts",
   "compatibility_date": "2026-07-31",
-  // 边缘运行时要跑 Next 的服务端代码，必须开 Node 兼容
-  "compatibility_flags": ["nodejs_compat"]
+  // Worker 里用到 Node 风格的 API（提示词模块），必须开
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./out",
+    // 静态资源的绑定名，worker.ts 里用 env.ASSETS 兜底
+    "binding": "ASSETS",
+    // 静态导出出来的是 xxx.html，访问 /about 要能命中 about.html
+    "html_handling": "auto-trailing-slash",
+    // 找不到的路径回落到 404.html，而不是 Worker 报错
+    "not_found_handling": "404-page"
+  }
 }

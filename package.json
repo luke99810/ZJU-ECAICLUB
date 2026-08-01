@@ -7,7 +7,7 @@
     "copy-pdf-worker": "node -e \"require('fs').copyFileSync('node_modules/pdfjs-dist/build/pdf.worker.min.mjs','public/pdf.worker.min.mjs')\"",
     "postinstall": "npm run copy-pdf-worker",
     "check-schema": "node scripts/check-schema.mjs",
-    "build:cf": "npx @cloudflare/next-on-pages"
+    "build:cf": "node scripts/build-cf.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.111.0",

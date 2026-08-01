@@ -13,3 +13,10 @@ next.tgz
 # next-on-pages 的构建产物
 .vercel/
 *.tsbuildinfo
+
+# wrangler 本地变量，含密钥
+.dev.vars
+
+# 含密钥的本地速查文件，只该留在桌面
+Cloudflare配置.txt
+*配置.txt
