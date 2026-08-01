@@ -17,8 +17,14 @@
  */
 import { buildChatRequest, isAiTask } from '../../lib/aiPrompts';
 
-const DEFAULT_BASE = 'https://api.siliconflow.cn/v1';
-const DEFAULT_MODEL = 'Qwen/Qwen2.5-7B-Instruct';
+// 默认值改成社团实际在用的 DeepSeek。
+//
+// 原来默认硅基流动，是脚手架阶段随手写的。结果部署时 AI_API_BASE 一漏配，
+// key 就被发去了另一家，报「key 无效」——错误指向完全错误的方向，排查绕了一大圈。
+// 默认值应该等于**这个项目实际跑的那一套**，而不是某个通用示例。
+// 换服务商时照常用 AI_API_BASE / AI_MODEL 覆盖。
+const DEFAULT_BASE = 'https://api.deepseek.com/v1';
+const DEFAULT_MODEL = 'deepseek-chat';
 
 /** 单次输入上限，防止有人把整本书粘进来把免费额度烧光。 */
 const MAX_INPUT = 6000;
