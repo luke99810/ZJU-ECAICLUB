@@ -612,11 +612,12 @@ export async function resetMemberPassword(memberId: string): Promise<ChangePassw
 }
 
 /**
- * 管理员修改任意成员的全部字段 —— 包括学号与邮箱这两个登录标识。
+ * 管理员修改任意成员的全部字段 —— 包括学号这个登录标识。
  *
  * 与 `updateProfile`（本人改自己、不动账号字段）是两回事：这里是**账号管理**，
- * 只有管理员能调。学号 / 邮箱在本地演示模式就是登录标识，改它们等于换账号，
- * 所以调用方（成员管理页）在提交前要弹确认窗口。
+ * 只有管理员能调。学号是登录标识之一，改它等于换账号，所以调用方（成员管理页）
+ * 在提交前要弹确认窗口。邮箱是登录账号，UI 层不开放修改 —— 这里仍保留 email
+ * 参数（调用方传回原值），只为与 `AddMemberInput` 同构、便于将来需要时放开。
  */
 export interface UpdateMemberInput {
   name: string;
@@ -707,11 +708,9 @@ async function updateMemberLocal(memberId: string, input: UpdateMemberInput): Pr
 /**
  * Supabase 模式：直接更新 members 行。
  *
- * 说明：members.email 与 auth.users 的登录邮箱是两份数据，前端拿的是 anon key，
- * 改不了 auth.users。改这里只会更新名册里的邮箱 —— 成员登录仍用 Supabase Auth
- * 里那个旧邮箱。因此调用方在改邮箱时要额外提醒管理员去 Supabase 控制台同步
- * Auth 邮箱（或走「重置口令邮件」让本人重新激活）。学号只存在于 members 表，
- * 改它没有这个隐患。
+ * 学号只存在于 members 表，改它没有 auth 侧的隐患。邮箱在 UI 层不开放修改
+ * （这里 email 传回原值），所以不会碰到「members.email 与 auth.users 登录邮箱
+ * 不一致」的问题 —— 那只有将来放开邮箱修改时才需要额外处理。
  */
 async function updateMemberRemote(memberId: string, input: UpdateMemberInput): Promise<UpdateMemberResult> {
   const prep = await prepareMemberUpdate(memberId, input);

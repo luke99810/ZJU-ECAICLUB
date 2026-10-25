@@ -93,18 +93,14 @@ export default function MembersPage() {
     setNotice(null);
 
     if (editingId) {
-      // 管理员可改任意成员的全部字段，包括学号 / 邮箱这两个登录标识。
-      // 动到账号前要弹确认窗口，防止误改把人的登录入口换掉。
+      // 管理员可改任意成员的全部资料字段，以及学号（登录标识之一）。
+      // 邮箱是登录账号，不在这里开放修改。动到学号前弹确认窗口，防止误改换掉登录入口。
       const original = rows.find(m => m.id === editingId);
       const accountChanged =
         original !== undefined &&
-        (original.student_id !== form.student_id.trim() ||
-          original.email.toLowerCase() !== form.email.trim().toLowerCase());
+        original.student_id !== form.student_id.trim();
       if (accountChanged) {
-        const tip = usingRealAuth
-          ? '邮箱是登录账号：这里只更新名册里的邮箱，成员登录仍用 Supabase Auth 里的旧邮箱，需另在控制台同步。'
-          : '学号与邮箱都是登录标识，改它们等于换账号。';
-        if (!window.confirm(`确认修改「${form.name}」的账号信息（学号 / 邮箱）？\n\n${tip}`)) {
+        if (!window.confirm(`确认修改「${form.name}」的学号？\n\n学号是登录标识之一，改它等于换账号。`)) {
           setBusy(false);
           return;
         }
@@ -125,7 +121,7 @@ export default function MembersPage() {
         return;
       }
       setNotice(
-        `已更新 ${member.name} 的资料${accountChanged ? '（含账号信息）' : ''}，社团成员页刷新即可看到。`
+        `已更新 ${member.name} 的资料${accountChanged ? '（含学号）' : ''}，社团成员页刷新即可看到。`
       );
     } else {
       const { member, error: err } = await addMember({
@@ -532,11 +528,12 @@ export default function MembersPage() {
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 required
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={!!editingId}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
               />
               {editingId && (
                 <span className="block text-xs text-gray-500 mt-1.5">
-                  学号与邮箱是登录标识，改动会弹出确认窗口，请谨慎操作。
+                  邮箱是登录账号，这里不开放修改；学号可改，改动会弹出确认窗口。
                 </span>
               )}
             </label>
