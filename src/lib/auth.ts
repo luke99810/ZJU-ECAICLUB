@@ -610,3 +610,126 @@ export async function resetMemberPassword(memberId: string): Promise<ChangePassw
   });
   return { ok: true };
 }
+
+/**
+ * 管理员修改任意成员的全部字段 —— 包括学号与邮箱这两个登录标识。
+ *
+ * 与 `updateProfile`（本人改自己、不动账号字段）是两回事：这里是**账号管理**，
+ * 只有管理员能调。学号 / 邮箱在本地演示模式就是登录标识，改它们等于换账号，
+ * 所以调用方（成员管理页）在提交前要弹确认窗口。
+ */
+export interface UpdateMemberInput {
+  name: string;
+  student_id: string;
+  email: string;
+  department: string;
+  tags: Member['tags'];
+  interests?: string;
+  bio?: string;
+  joinedYear?: number;
+}
+
+export interface UpdateMemberResult {
+  member?: Member;
+  error?: string;
+}
+
+export async function updateMember(
+  memberId: string,
+  input: UpdateMemberInput
+): Promise<UpdateMemberResult> {
+  if (isSupabaseConfigured) return updateMemberRemote(memberId, input);
+  return updateMemberLocal(memberId, input);
+}
+
+/** 校验 + 冲突检查 + 名额检查共用的部分，两套实现都走这里。 */
+async function prepareMemberUpdate(
+  memberId: string,
+  input: UpdateMemberInput
+): Promise<
+  | { ok: true; target: Member; all: Member[]; name: string; studentId: string; email: string; role: Member['role'] }
+  | { ok: false; error: string }
+> {
+  const session = getSession();
+  if (!session || !isAdmin(session)) return { ok: false, error: '只有管理员可以修改成员' };
+
+  const name = input.name.trim();
+  const studentId = input.student_id.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!name || !studentId || !email) return { ok: false, error: '姓名、学号、邮箱都要填' };
+  if (!/^\S+@\S+\.\S+$/.test(email)) return { ok: false, error: '邮箱格式不对' };
+
+  const all = await listMembers();
+  const target = all.find(m => m.id === memberId);
+  if (!target) return { ok: false, error: '找不到该成员' };
+
+  // 冲突检查只针对**其他**成员 —— 改回自己的原值不算撞。
+  if (all.some(m => m.id !== memberId && m.student_id === studentId)) {
+    return { ok: false, error: `学号 ${studentId} 已被其他成员占用` };
+  }
+  if (all.some(m => m.id !== memberId && m.email.toLowerCase() === email)) {
+    return { ok: false, error: `邮箱 ${email} 已被其他成员占用` };
+  }
+
+  // 角色由部门推导，调部门就同步权限（与 updateProfile 同一约定）。
+  const role: Member['role'] = input.department === ADMIN_DEPARTMENT ? 'admin' : 'member';
+  if (role === 'admin' && target.role !== 'admin') {
+    const admins = all.filter(m => m.role === 'admin').length;
+    if (admins >= MAX_ADMINS) {
+      return { ok: false, error: `管理层最多 ${MAX_ADMINS} 人，当前已有 ${admins} 人。先把某位调出管理层再加。` };
+    }
+  }
+
+  return { ok: true, target, all, name, studentId, email, role };
+}
+
+async function updateMemberLocal(memberId: string, input: UpdateMemberInput): Promise<UpdateMemberResult> {
+  const prep = await prepareMemberUpdate(memberId, input);
+  if (!prep.ok) return { error: prep.error };
+  const { target, name, studentId, email, role } = prep;
+
+  const updated: Member = {
+    ...target,
+    name,
+    student_id: studentId,
+    email,
+    department: input.department,
+    role,
+    tags: input.tags,
+    interests: input.interests?.trim() || undefined,
+    bio: input.bio?.trim() || undefined,
+    joined_at: input.joinedYear ? `${input.joinedYear}-09-01` : target.joined_at,
+  };
+  await upsertMember(updated);
+  return { member: updated };
+}
+
+/**
+ * Supabase 模式：直接更新 members 行。
+ *
+ * 说明：members.email 与 auth.users 的登录邮箱是两份数据，前端拿的是 anon key，
+ * 改不了 auth.users。改这里只会更新名册里的邮箱 —— 成员登录仍用 Supabase Auth
+ * 里那个旧邮箱。因此调用方在改邮箱时要额外提醒管理员去 Supabase 控制台同步
+ * Auth 邮箱（或走「重置口令邮件」让本人重新激活）。学号只存在于 members 表，
+ * 改它没有这个隐患。
+ */
+async function updateMemberRemote(memberId: string, input: UpdateMemberInput): Promise<UpdateMemberResult> {
+  const prep = await prepareMemberUpdate(memberId, input);
+  if (!prep.ok) return { error: prep.error };
+  const { target, name, studentId, email, role } = prep;
+
+  const updated: Member = {
+    ...target,
+    name,
+    student_id: studentId,
+    email,
+    department: input.department,
+    role,
+    tags: input.tags,
+    interests: input.interests?.trim() || undefined,
+    bio: input.bio?.trim() || undefined,
+    joined_at: input.joinedYear ? `${input.joinedYear}-09-01` : target.joined_at,
+  };
+  await upsertMember(updated);
+  return { member: updated };
+}

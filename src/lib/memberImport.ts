@@ -8,7 +8,8 @@
  * 解析同样在浏览器里做（xlsx 按需 dynamic import），不上传文件。
  */
 import { ADMIN_DEPARTMENT, AI_TAGS, DEPARTMENTS, type AiTag } from '../types';
-import { addMember } from './auth';
+import { addMember, updateMember } from './auth';
+import { listMembers } from './store';
 
 export const IMPORT_ACCEPT = '.csv,.xlsx,.xls';
 export const MAX_IMPORT_ROWS = 300;
@@ -227,15 +228,46 @@ export async function parseMemberFile(file: File): Promise<ParseReport> {
 
 export interface ImportResult {
   added: number;
-  /** 逐条失败原因（多为学号/邮箱已存在）。 */
+  /** 姓名 + 邮箱与库里已有成员一致、被覆盖更新的条数。 */
+  updated: number;
+  /** 逐条失败原因（多为学号/邮箱已存在且姓名对不上）。 */
   failures: string[];
 }
 
-/** 逐行写入。已存在的会被 `addMember` 拒掉，这里把原因收集起来。 */
+/**
+ * 逐行写入。
+ *
+ * 判重规则：**姓名 + 邮箱一致** → 覆盖更新该成员（重新导入同一批名单时，
+ * 修正后的资料会顶掉旧记录，而不是被「学号已存在」挡住）；其余情况走新增，
+ * 已存在的学号 / 邮箱会被 `addMember` 拒掉，原因逐条收集。
+ */
 export async function importMembers(rows: ParsedRow[]): Promise<ImportResult> {
   let added = 0;
+  let updated = 0;
   const failures: string[] = [];
+  const existing = await listMembers();
   for (const r of rows) {
+    // 姓名 + 邮箱一致 → 覆盖更新
+    const match = existing.find(
+      m =>
+        m.name.trim() === r.name.trim() &&
+        m.email.toLowerCase() === r.email.toLowerCase()
+    );
+    if (match) {
+      const { member, error } = await updateMember(match.id, {
+        name: r.name,
+        student_id: r.student_id,
+        email: r.email,
+        department: r.department,
+        tags: r.tags,
+        interests: r.interests,
+        bio: r.bio,
+        joinedYear: r.joinedYear,
+      });
+      if (member) updated += 1;
+      else failures.push(`第 ${r.line} 行（${r.name} / ${r.student_id}）：${error ?? '覆盖失败'}`);
+      continue;
+    }
     const { member, error } = await addMember({
       name: r.name,
       student_id: r.student_id,
@@ -249,7 +281,7 @@ export async function importMembers(rows: ParsedRow[]): Promise<ImportResult> {
     if (member) added += 1;
     else failures.push(`第 ${r.line} 行（${r.name} / ${r.student_id}）：${error ?? '写入失败'}`);
   }
-  return { added, failures };
+  return { added, updated, failures };
 }
 
 /** 给管理员下载的模板，避免自己猜列名。 */

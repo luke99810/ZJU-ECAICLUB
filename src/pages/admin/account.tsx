@@ -98,15 +98,16 @@ export default function AccountPage() {
 
   return (
     <AdminShell title="我的账号">
-      <div className="max-w-xl space-y-6">
+      <div className="space-y-6">
         {member && usesDefaultPassword(member) && (
           <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 leading-relaxed">
             你还在用初始口令。初始口令是公开可推测的（成员为学号），请现在就改掉。
           </p>
         )}
 
-        {/* ── 个人资料 ─────────────────────────────── */}
-        <form onSubmit={saveProfile} className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="grid gap-6 lg:grid-cols-2 items-start">
+          {/* ── 个人资料 ─────────────────────────────── */}
+          <form onSubmit={saveProfile} className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="font-semibold text-gray-900 mb-1">个人资料</h2>
           <p className="text-sm text-gray-500 mb-4">
             保存后立即反映到对外的<span className="text-gray-800">团队成员</span>页。
@@ -231,8 +232,8 @@ export default function AccountPage() {
           </div>
         </form>
 
-        {/* ── 口令 ─────────────────────────────────── */}
-        <form onSubmit={savePassword} className="bg-white rounded-xl border border-gray-200 p-5">
+          {/* ── 修改口令 ─────────────────────────────── */}
+          <form onSubmit={savePassword} className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="font-semibold text-gray-900 mb-4">修改口令</h2>
 
           {(
@@ -277,7 +278,8 @@ export default function AccountPage() {
             {busy && <Loader2 className="w-4 h-4 animate-spin" />}
             保存口令
           </button>
-        </form>
+          </form>
+        </div>
       </div>
     </AdminShell>
   );

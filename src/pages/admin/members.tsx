@@ -9,7 +9,7 @@ import {
   MAX_ADMINS,
   addMember,
   resetMemberPassword,
-  updateProfile,
+  updateMember,
   usesDefaultPassword,
 } from '../../lib/auth';
 import { listMembers } from '../../lib/store';
@@ -93,9 +93,26 @@ export default function MembersPage() {
     setNotice(null);
 
     if (editingId) {
-      // 学号与邮箱是登录标识，不在这里改 —— 那是换账号，不是改资料
-      const { ok, error: err } = await updateProfile(editingId, {
+      // 管理员可改任意成员的全部字段，包括学号 / 邮箱这两个登录标识。
+      // 动到账号前要弹确认窗口，防止误改把人的登录入口换掉。
+      const original = rows.find(m => m.id === editingId);
+      const accountChanged =
+        original !== undefined &&
+        (original.student_id !== form.student_id.trim() ||
+          original.email.toLowerCase() !== form.email.trim().toLowerCase());
+      if (accountChanged) {
+        const tip = usingRealAuth
+          ? '邮箱是登录账号：这里只更新名册里的邮箱，成员登录仍用 Supabase Auth 里的旧邮箱，需另在控制台同步。'
+          : '学号与邮箱都是登录标识，改它们等于换账号。';
+        if (!window.confirm(`确认修改「${form.name}」的账号信息（学号 / 邮箱）？\n\n${tip}`)) {
+          setBusy(false);
+          return;
+        }
+      }
+      const { member, error: err } = await updateMember(editingId, {
         name: form.name,
+        student_id: form.student_id,
+        email: form.email,
         department: form.department,
         tags: form.tags,
         interests: form.interests,
@@ -103,11 +120,13 @@ export default function MembersPage() {
         joinedYear: form.joinedYear,
       });
       setBusy(false);
-      if (!ok) {
+      if (!member) {
         setError(err ?? '保存失败');
         return;
       }
-      setNotice(`已更新 ${form.name} 的资料，社团成员页刷新即可看到。`);
+      setNotice(
+        `已更新 ${member.name} 的资料${accountChanged ? '（含账号信息）' : ''}，社团成员页刷新即可看到。`
+      );
     } else {
       const { member, error: err } = await addMember({
         name: form.name,
@@ -196,13 +215,13 @@ export default function MembersPage() {
   const runImport = async () => {
     if (!report || importing) return;
     setImporting(true);
-    const { added, failures } = await importMembers(report.rows);
+    const { added, updated, failures } = await importMembers(report.rows);
     setImporting(false);
     setReport(null);
     await reload();
     setNotice(
-      `导入完成：新增 ${added} 人${failures.length ? `，${failures.length} 条未导入` : ''}。` +
-        (added ? '初始口令都是本人学号，请通知各位登录后修改。' : '')
+      `导入完成：新增 ${added} 人，覆盖 ${updated} 人${failures.length ? `，${failures.length} 条未导入` : ''}。` +
+        (added ? '新增的初始口令都是本人学号，请通知各位登录后修改。' : '')
     );
     // 失败原因逐条给出来，管理员才知道该改表格哪一行
     setError(failures.length ? failures.join('；') : null);
@@ -500,9 +519,8 @@ export default function MembersPage() {
                   value={form.student_id}
                   onChange={e => setForm(f => ({ ...f, student_id: e.target.value }))}
                   required
-                  disabled={!!editingId}
                   placeholder="22451001"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </label>
             </div>
@@ -514,12 +532,11 @@ export default function MembersPage() {
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 required
-                disabled={!!editingId}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               {editingId && (
                 <span className="block text-xs text-gray-500 mt-1.5">
-                  学号与邮箱是登录标识，改它们等于换账号，这里不开放修改。
+                  学号与邮箱是登录标识，改动会弹出确认窗口，请谨慎操作。
                 </span>
               )}
             </label>
